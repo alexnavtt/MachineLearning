@@ -8,7 +8,7 @@ def getNextField(data, format, idx):
     return (observed_data, idx)
     
 
-def readMNistLabels(filepath, magic_number):
+def readMNistLabels(filepath, magic_number, count=None):
     header_fields = [">i",  # 32-bit int : magic number
                      ">i"]  # 32-bit int : number of labels
 
@@ -27,13 +27,17 @@ def readMNistLabels(filepath, magic_number):
     # Determine how many images are in the dataset
     (image_count, idx) = getNextField(data, header_fields[1], idx)
 
+    # Determine how many labels we want to return
+    if (count != None):
+        image_count = min(image_count, count)
+
     # Get the labels for each image
     datasize = struct.calcsize(">" + "B"*image_count)
     labels = struct.unpack(">" + "B"*image_count, data[idx : idx + datasize])
     return labels
 
 
-def readMNistImages(filepath, magic_number):
+def readMNistImages(filepath, magic_number, count=None):
     # Define the format of the file
     header_fields = [">i",  # 32-bit int : magic number
                      ">i",  # 32-bit int : number of images
@@ -60,6 +64,10 @@ def readMNistImages(filepath, magic_number):
     images = []
     image_format = ">" + "B"*row_count*column_count
     datasize = struct.calcsize(image_format)
+
+    # Determine how many images we want to return
+    if (count != None):
+        image_count = min(image_count, count)
 
     for _ in range(image_count):
         # Get the image data
