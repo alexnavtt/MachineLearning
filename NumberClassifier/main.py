@@ -3,6 +3,7 @@ from PIL.Image import Image
 import numpy as np
 from matplotlib import pyplot as plt
 import time
+import os
 
 # Stuff I wrote
 from read_data import readMNistImages, readMNistLabels
@@ -78,8 +79,8 @@ def main():
     # Read the data
     print("Reading data")
     t1 = time.time()
-    images = readMNistImages("data\\t10k-images.idx3-ubyte", magic_number=2051, count=None)
-    labels = readMNistLabels("data\\t10k-labels.idx1-ubyte", magic_number=2049, count=None) 
+    images = readMNistImages(os.path.join("data","t10k-images.idx3-ubyte"), magic_number=2051, count=None)
+    labels = readMNistLabels(os.path.join("data","t10k-labels.idx1-ubyte"), magic_number=2049, count=None) 
     t2 = time.time()
     print("Finished reading data, extracted the first {0} images and labels in {1:.2f} seconds".format(len(images), t2-t1))
 
