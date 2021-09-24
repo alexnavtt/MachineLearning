@@ -37,7 +37,7 @@ class SignalSeparator:
         while ( abs(W_norm_old-W_norm_new) > 0.00*W_norm_old ) and (iter_count < 1e6):
             iter_count += 1
             W_norm_old = W_norm_new
-            best_guess = self.stepByGradientDescent(0.01)
+            best_guess = self.stepByGradientDescent(step_size)
             W_norm_new = np.linalg.norm(self.W)
 
         return best_guess
