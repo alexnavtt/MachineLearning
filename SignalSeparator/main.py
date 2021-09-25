@@ -59,26 +59,61 @@ def plotRecoveredSignals(data):
             ax.set_xticks([])
             ax.set_xticks([], minor = True)
 
-def main():
-    separator = SignalSeparator()
-    sounds = scipy.io.loadmat(os.path.join("data", "sounds"))["sounds"]
+def tryTestData():
+    test_separator = SignalSeparator()
     test_data = scipy.io.loadmat(os.path.join("data", "icaTest"))
 
-    X = test_data["A"] @ test_data["U"]
+    # Try out the test data
+    test_X = test_data["A"] @ test_data["U"]
     plotOriginalSignal(test_data["U"])
+    plotMixedSignal(test_X)
+    print(np.shape(test_X))
+
+    # Try to isolate the test signals
+    test_separator.addData(test_X)
+    test_separator.signal_count = 3
+    signal_approximation = test_separator.isolateSignals(step_size=0.01)
+    plotRecoveredSignals(signal_approximation)
+    plt.show()
+
+def main():
+    sounds = scipy.io.loadmat(os.path.join("data", "sounds"))["sounds"]
+
+    # Mix together the main sounds
+    sound_count = 3
+    # A = np.random.rand(sound_count, sound_count)
+    A = np.array([[0.1, 0.2, 0.3], [0.5, 0.1, 0.2], [0.2, 0.6, 0.2]])
+    U = np.zeros([sound_count, len(sounds[0,:])])
+    U[0,:] = sounds[0,:]
+    U[1,:] = sounds[3,:]
+    U[2,:] = sounds[4,:]
+    X = A @ U
+
+    for i in range(sound_count):
+        # Normalize the signals
+        U[i,:] /= np.max(U[i,1000:])
+        X[i,:] /= np.max(X[i,1000:])
+
+        # Write the mixed and isolated sounds to files to I can listen to them
+        scipy.io.wavfile.write(os.path.join("SignalSeparator", "mixed_wav_file_{}.wav".format(i)), 11000, X[i,:])
+
+    main_separator = SignalSeparator()
+    main_separator.addData(X)
+    main_separator.signal_count = sound_count
+    isolated_sounds = main_separator.isolateSignals(start_value = 0.01, step_size = 0.01)
+    
+    for i in range(sound_count):
+        isolated_sounds[i,:] /= np.max(isolated_sounds[i,1000:])
+        scipy.io.wavfile.write(os.path.join("SignalSeparator", "isolated_wav_file_{}.wav".format(i)), 11000, isolated_sounds[i,:])
+
+    # Plot how the signals came out
+    plotOriginalSignal(U)
     plotMixedSignal(X)
+    plotRecoveredSignals(isolated_sounds)
 
-    separator.addData(X)
-    separator.signal_count = 3
-    # signal_approximation = separator.isolateSignals(step_size=0.01)
-
-    plt.figure(1)
-    plt.plot(sounds[0,:])
-    print(sounds[0,:])
-    # plotRecoveredSignals(signal_approximation)
-
-    scipy.io.wavfile.write(os.path.join("SignalSeparator", "sound1.wav"), 11000, sounds[0,:])
-
+    print("A:\n", A)
+    W_inv = np.linalg.inv(main_separator.W)
+    print("inv(W):\n", W_inv)
     plt.show()
 
 if __name__ == "__main__":
