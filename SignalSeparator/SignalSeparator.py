@@ -8,6 +8,7 @@ Notes on the notes:
     t = length of the data
 
     U = source signal matrix (n x t)
+    X = mixed signal matrix (m x t)
     W = linear combination inverse approximation (n x m)
     A = inv(W) = linear signal combination matrix (m x n)
     Y = estimate of U (n x t)
@@ -31,21 +32,22 @@ class SignalSeparator:
     def isolateSignals(self, start_value = 0.1, step_size = 0.1):
         self.W = np.random.rand(self.signal_count, self.input_signal_count)*start_value
 
-        W_norm_old = np.linalg.norm(self.W)
-        W_norm_new = 0
         iter_count = 0
-        while ( abs(W_norm_old-W_norm_new) > 0.00*W_norm_old ) and (iter_count < 1e6):
+        change = 1
+        while change > 0.00000005 and (iter_count < 1e4):
             iter_count += 1
-            W_norm_old = W_norm_new
-            best_guess = self.stepByGradientDescent(step_size)
-            W_norm_new = np.linalg.norm(self.W)
+            best_guess, change = self.stepByGradientDescent(step_size)
+            print("\r", "Iterations: ", iter_count, "\t, Relative change: {:.8f}".format(change), end = "")
+        print("\nFinished after {} iterations".format(iter_count))
 
         return best_guess
 
 
     def stepByGradientDescent(self, step_size = 0.1):
         Y = self.W @ self.mixed_signal
-        Z = 1/(1 + np.exp(-Y))
-        delta_W = step_size * (np.identity(self.signal_count) + (1 - 2*Z)@Y.T) @ self.W
+        Z = 1/(1 + np.exp(-1.5*Y))
+        # delta_W = step_size * (np.identity(self.signal_count) + (1 - 2*Z)@Y.T) @ self.W
+        delta_W = step_size * (1 - 2*Z) @ Y.T @ self.W
+        diff = np.linalg.norm(delta_W)/np.linalg.norm(self.W)
         self.W += delta_W
-        return Y
+        return Y, diff
