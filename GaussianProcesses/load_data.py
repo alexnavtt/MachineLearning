@@ -70,3 +70,19 @@ class MotionData:
             data = np.vstack([data, new_row])
 
         return data[:,:min_len]
+
+    def targetData(self, dir: str, count: int, start: int = 0):
+        data = np.zeros((0, 2000))
+        min_len = np.inf
+
+        for i in range(start, start + count, 1):
+            new_data_set = self.participant(i//5, i - math.floor(i/5)*5)
+            min_len = min(min_len, len(new_data_set))
+            new_row = np.zeros([1, 2000])
+
+            for frame, frame_dict in enumerate(new_data_set):
+                new_row[0,frame] = frame_dict['target_' + dir]
+
+            data = np.vstack([data, new_row])
+
+        return data[:,:min_len]
