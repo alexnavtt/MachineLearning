@@ -5,7 +5,19 @@ from load_data import MotionData
 from matplotlib import pyplot as plt
 from gaussian_model import GaussianModel
 
+# Print numpy arrays in a legible way
 np.set_printoptions(formatter={'float': lambda x: "{0:0.2f}".format(x)})
+
+# Create a new figure
+def newFig():
+    try:
+        plt.figure(newFig.fig_count)
+        newFig.fig_count += 1
+    except AttributeError:
+        newFig.fig_count = 1
+        plt.figure(0)
+
+    return newFig.fig_count - 1
 
 def constPlot(x, y, color = 'k'):
     plt.plot([x[0], x[-1]], [y, y], color)
@@ -14,8 +26,7 @@ def main():
     # Settings
     animate = False     # animate the 3D plots?
     count = 1           # how many data runs to include?
-    plt_target = False  # do we plot the target data
-    fig_count = 0       # the index of the current plot
+    plt_target = True   # do we plot the target data
     
     # Extract the data from the data file
     data = MotionData()
@@ -28,7 +39,7 @@ def main():
 
     # Plot the target data
     if plt_target:
-        plt.figure(fig_count)
+        target_plot = newFig()
         plt.subplot(1,2,1, projection = '3d')
         plt.plot(target_x, target_y, target_z)
         plt.title("Full 3D target trajectory")
@@ -48,8 +59,6 @@ def main():
         plt.title('z')
         plt.xticks([])
 
-        plt.show()
-        
     # Participant data
     x_data = data.fingerData("x", count = count, start = 0)
     y_data = data.fingerData("y", count = count, start = 0)
@@ -65,131 +74,89 @@ def main():
     y_data = np.mean(y_data, axis = 0)
     z_data = np.mean(z_data, axis = 0)
 
-    # Calculate the paramters for each axis
+    # Create a regression model for each axis
     xGaus = GaussianModel(x_data)
     yGaus = GaussianModel(y_data)
     zGaus = GaussianModel(z_data)
 
-    # Subtract the mean from the data
-    xGaus.data = xGaus.data - xGaus.mu()
-    yGaus.data = yGaus.data - yGaus.mu()
-    zGaus.data = zGaus.data - zGaus.mu()
+    # Set the x_data
+    xGaus.x_data = list(range(len(xGaus.data)))
+    yGaus.x_data = list(range(len(yGaus.data)))
+    zGaus.x_data = list(range(len(zGaus.data)))
 
-    """ 
-    TESTING GROUNDS
-    """
+    # Main loop
+    gaussian_fit_curve = np.zeros(len(xGaus.data))
+    gaussian_var_curve = np.zeros(len(xGaus.data))
+    window_start = 0
+    window_end   = 100
+    window_delta = 50
+    while window_end < len(xGaus.data):
+        print(f"Window from {window_start} to {window_end}")
+        timestamps = xGaus.x_data[window_start:window_end]
+        (vals, vars) = xGaus.gaussianRegression(timestamps, start = window_start, end = window_end)
+        gaussian_fit_curve[window_start:window_end] = vals[:]
+        window_start = window_start + window_delta
+        window_end   = min(window_end + window_delta, len(xGaus.data))
 
-    N = 100
-    test_data = np.zeros(N)
-    x_data = np.zeros(N)
+    t_vec = xGaus.x_data
+    test_data = xGaus.data
+    result = gaussian_fit_curve
 
-    for i in range(N):
-        test_data[i] = xGaus.data[int(i/N * 100)]
-        x_data[i] = int(i/N *100)
-    test_data -= np.mean(test_data)
-    gGaus = GaussianModel(test_data)
-    print("Calculating hyperparameters")
-    params = gGaus._determineHyperparams()
-    # params = [0.1, 0.01, 15.06]
+    # Test out on 100 data-point window
+    # x_data = xGaus.x_data[0:100]
+    # test_data = xGaus.data[0:100]
+    # (result, vars) = xGaus.gaussianRegression(x_data, start = 0, end = 100)
+    # var_result_plus  = result + 2*np.sqrt(vars)
+    # var_result_minus = result - 2*np.sqrt(vars)
 
-    print(params)
-    sigma_f = params[0]
-    sigma_n = params[1]
-    length  = params[2]
-
-    result = []
-    var_result_plus = []
-    var_result_minus = []
-    K = gGaus.kernel(N, sigma_f, length) + sigma_n**2 * np.identity(N)
-    K_inv = np.linalg.inv(K)
-    for test_x in range(100):
-        k_star = gGaus.kernelStar(test_x, x_data, sigma_f, sigma_n, length)
-        best_guess = k_star @ K_inv @ gGaus.data.T
-        result.append(best_guess)
-
-        K_double_star = sigma_f**2 + sigma_n**2
-        var = abs(K_double_star - k_star @ K_inv @ k_star.T)
-        var_result_plus.append(result[-1] + 2*math.sqrt(var))
-        var_result_minus.append(result[-1] - 2*math.sqrt(var))
-
-    print(gGaus.mu())
-    plt.figure(3)
-    plt.plot(list(range(100)), result)
-    plt.plot(x_data, test_data)
-    plt.plot(x_data, var_result_plus, 'k')
-    plt.plot(x_data, var_result_minus, 'k')
+    result_plot = newFig()
+    # plt.plot(t_vec, result)
+    plt.plot(t_vec, test_data)
     plt.show()
     return
+    plt.plot(x_data, var_result_plus, 'k')
+    plt.plot(x_data, var_result_minus, 'k')
 
-    # # Let's try it at x = 50
-    # test_point = 50
-    # y = xGaus.data[test_point]
-    # K = xGaus.kernel(100, sigma_f, length) + sigma_n**2 * np.identity(100)
-    # k_star = xGaus.KStar(test_point, 100, sigma_f, sigma_n, length)
-    # best_guess = k_star @ np.linalg.inv(K) @ xGaus.data[0:100]
-    # print(f'y is {y} and best guess is {best_guess}')
-    # return 
-
-    """
-    FINISH TESTING GROUNDS
-    """
-
-    size = len(xGaus.data)
-    T = list(range(size))
-
-    plt.figure(0)
-    ax = plt.axes(projection='3d')
-    plt.xlim([0,2])
-
-    # Animate the 3D data
+    # Plot the actual trajectory
+    trajectory_plot = newFig()
+    plt.subplot(1,2,1, projection = '3d')
     if animate:
-        for i in range(size):
-            ax.plot3D(xGaus.data[:i], yGaus.data[:i], zGaus.data[:i],'k')
-            ax.set_xlim(-1.5,0.5)
-            ax.set_ylim(0.5,2)
-            ax.set_zlim(-1.75,-0.25)
-            ax.set_xlabel("x")
-            ax.set_ylabel("y")
-            ax.set_zlabel("z")
+        # Animate the 3D data
+        for i, _ in enumerate(xGaus.data):
+            plt.plot(xGaus.data[:i], yGaus.data[:i], zGaus.data[:i],'k')
+            plt.xlim(-1.5,0.5)
+            plt.ylim(0.5,2)
+            plt.gca().set_zlim(-1.75,-0.25)
+            plt.xlabel("x")
+            plt.ylabel("y")
+            plt.gca().set_zlabel("z")
             plt.draw()
             plt.pause(0.001)
 
-            if i == (size - 1):
+            if i == len(xGaus.data) - 1:
                 break
             else: 
                 plt.cla()
 
-    # Or just plot the 3D data in one go
     else:
-        ax.plot3D(xGaus.data, yGaus.data, zGaus.data, 'k')
-        ax.set_xlim(-1.5,0.5)
-        ax.set_ylim(0.5,2)
-        ax.set_zlim(-1.75,-0.25)
-        ax.set_xlabel("x")
-        ax.set_ylabel("y")
-        ax.set_zlabel("z")
+        # Or just plot the 3D data in one go
+        plt.plot(xGaus.data, yGaus.data, zGaus.data)
+        plt.xlabel("x")
+        plt.ylabel("y")
+        plt.gca().set_zlabel("z")
             
 
     # Plot the individual axes
-    plt.figure(1)
-    plt.subplot(311)
-    plt.plot(T, xGaus.data)
-    constPlot(T, xGaus.mu())
-    constPlot(T, xGaus.mu() + 2*xGaus.stddev(), 'g')
-    constPlot(T, xGaus.mu() - 2*xGaus.stddev(), 'g')
-    plt.subplot(312)
-    plt.plot(T, yGaus.data)
-    constPlot(T, yGaus.mu())
-    constPlot(T, yGaus.mu() + 2*yGaus.stddev(), 'g')
-    constPlot(T, yGaus.mu() - 2*yGaus.stddev(), 'g')
-    plt.subplot(313)
-    plt.plot(T, zGaus.data)
-    constPlot(T, zGaus.mu())
-    constPlot(T, zGaus.mu() + 2*zGaus.stddev(), 'g')
-    constPlot(T, zGaus.mu() - 2*zGaus.stddev(), 'g')
+    plt.subplot(3, 2, 2)
+    plt.plot(xGaus.x_data, xGaus.data, 'k')
+    plt.title('x')
+    plt.subplot(3, 2, 4)
+    plt.plot(yGaus.x_data, yGaus.data, 'k')
+    plt.title('y')
+    plt.subplot(3, 2, 6)
+    plt.plot(zGaus.x_data, zGaus.data, 'k')
+    plt.title('z')
     plt.show()
-
-    
 
 
 if __name__ == "__main__":
