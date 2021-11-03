@@ -6,7 +6,7 @@ from matplotlib import pyplot as plt
 from gaussian_model import GaussianModel
 
 # Print numpy arrays in a legible way
-np.set_printoptions(formatter={'float': lambda x: "{0:0.2f}".format(x)})
+np.set_printoptions(formatter={'float': lambda x: "{0:0.5f}".format(x)})
 
 # Create a new figure
 def newFig():
@@ -25,8 +25,8 @@ def constPlot(x, y, color = 'k'):
 def main():
     # Settings
     animate = False     # animate the 3D plots?
-    count = 1           # how many data runs to include?
-    plt_target = True   # do we plot the target data
+    count = 5           # how many data runs to include?
+    plt_target = False  # do we plot the target data
     
     # Extract the data from the data file
     data = MotionData()
@@ -60,62 +60,72 @@ def main():
         plt.xticks([])
 
     # Participant data
-    x_data = data.fingerData("x", count = count, start = 0)
-    y_data = data.fingerData("y", count = count, start = 0)
-    z_data = data.fingerData("z", count = count, start = 0)
+    raw_x_data = data.fingerData("x", count = count, start = 0)
+    raw_y_data = data.fingerData("y", count = count, start = 0)
+    raw_z_data = data.fingerData("z", count = count, start = 0)
 
     # Get the standard deviation of the data
-    x_stddev = np.std(x_data, axis = 0)
-    y_stddev = np.std(y_data, axis = 0)
-    z_stddev = np.std(z_data, axis = 0)
+    x_stddev = np.std(raw_x_data, axis = 0)
+    y_stddev = np.std(raw_y_data, axis = 0)
+    z_stddev = np.std(raw_z_data, axis = 0)
 
     # Get the mean of the data
-    x_data = np.mean(x_data, axis = 0)
-    y_data = np.mean(y_data, axis = 0)
-    z_data = np.mean(z_data, axis = 0)
+    x_data   = np.mean(raw_x_data, axis = 0)
+    y_data   = np.mean(raw_y_data, axis = 0)
+    z_data   = np.mean(raw_z_data, axis = 0)
+    data_len = len(x_data)
+
+    # Update so we're only taking one of every m points
+    m = 1
+    x_data   = [x_data[i]   for i in range(len(x_data))   if i%m == 0]
+    x_stddev = [x_stddev[i] for i in range(len(x_stddev)) if i%m == 0]
 
     # Create a regression model for each axis
     xGaus = GaussianModel(x_data)
     yGaus = GaussianModel(y_data)
     zGaus = GaussianModel(z_data)
 
-    # Set the x_data
-    xGaus.x_data = list(range(len(xGaus.data)))
-    yGaus.x_data = list(range(len(yGaus.data)))
-    zGaus.x_data = list(range(len(zGaus.data)))
+    xGaus.stddev = x_stddev
+    yGaus.stddev = y_stddev
+    zGaus.stddev = z_stddev
+
+    # Set the time data
+    xGaus.t_data = list(range(0, data_len, m))
+    yGaus.t_data = list(range(0, data_len, m))
+    zGaus.t_data = list(range(0, data_len, m))
 
     # Main loop
-    gaussian_fit_curve = np.zeros(len(xGaus.data))
-    gaussian_var_curve = np.zeros(len(xGaus.data))
+    gaussian_fit_curve = np.zeros(data_len)
+    gaussian_std_curve = np.zeros(data_len)
     window_start = 0
-    window_end   = 100
-    window_delta = 50
-    while window_end < len(xGaus.data):
+    window_end   = 50
+    window_delta = 30
+
+    while window_start < data_len:
         print(f"Window from {window_start} to {window_end}")
-        timestamps = xGaus.x_data[window_start:window_end]
-        (vals, vars) = xGaus.gaussianRegression(timestamps, start = window_start, end = window_end)
+        timestamps = list(range(window_start, window_end))
+        (vals, vars) = zGaus.gaussianRegression(timestamps, start = window_start, end = window_end)
         gaussian_fit_curve[window_start:window_end] = vals[:]
-        window_start = window_start + window_delta
-        window_end   = min(window_end + window_delta, len(xGaus.data))
+        gaussian_std_curve[window_start:window_end] = np.sqrt(vars[:])
+        window_start = min(window_start + window_delta, data_len)
+        window_end   = min(window_end   + window_delta, data_len)
 
-    t_vec = xGaus.x_data
-    test_data = xGaus.data
-    result = gaussian_fit_curve
+        # Boundary correction
+        if window_start > 0 and window_start < data_len:
+            gaussian_fit_curve[window_start] = 0.5*(gaussian_fit_curve[window_start+1] + gaussian_fit_curve[window_start - 1])
 
-    # Test out on 100 data-point window
-    # x_data = xGaus.x_data[0:100]
-    # test_data = xGaus.data[0:100]
-    # (result, vars) = xGaus.gaussianRegression(x_data, start = 0, end = 100)
-    # var_result_plus  = result + 2*np.sqrt(vars)
-    # var_result_minus = result - 2*np.sqrt(vars)
 
+    # Plot the real data
     result_plot = newFig()
-    # plt.plot(t_vec, result)
-    plt.plot(t_vec, test_data)
+    plt.plot(zGaus.t_data, zGaus.data)
+
+    # Plot the regression fit
+    t_data = list(range(data_len))
+    plt.plot(t_data, gaussian_fit_curve)
+    plt.plot(t_data, gaussian_fit_curve + 2*gaussian_std_curve, 'k')
+    plt.plot(t_data, gaussian_fit_curve - 2*gaussian_std_curve, 'k')
     plt.show()
     return
-    plt.plot(x_data, var_result_plus, 'k')
-    plt.plot(x_data, var_result_minus, 'k')
 
     # Plot the actual trajectory
     trajectory_plot = newFig()
