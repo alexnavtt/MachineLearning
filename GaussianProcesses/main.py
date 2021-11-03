@@ -97,6 +97,9 @@ def main():
     # Main loop
     gaussian_fit_curve = np.zeros(data_len)
     gaussian_std_curve = np.zeros(data_len)
+    sigma_f_curve      = np.zeros(data_len)
+    sigma_n_curve      = np.zeros(data_len)
+    length_curve       = np.zeros(data_len)
     window_start = 0
     window_end   = 50
     window_delta = 30
@@ -104,9 +107,12 @@ def main():
     while window_start < data_len:
         print(f"Window from {window_start} to {window_end}")
         timestamps = list(range(window_start, window_end))
-        (vals, vars) = zGaus.gaussianRegression(timestamps, start = window_start, end = window_end)
+        (vals, vars) = xGaus.gaussianRegression(timestamps, start = window_start, end = window_end)
         gaussian_fit_curve[window_start:window_end] = vals[:]
         gaussian_std_curve[window_start:window_end] = np.sqrt(vars[:])
+        sigma_f_curve[window_start:window_end] = np.array([xGaus._sigma_f]*(window_end-window_start))
+        sigma_n_curve[window_start:window_end] = np.array([xGaus._sigma_n]*(window_end-window_start))
+        length_curve[window_start:window_end]  = np.array([xGaus._length]*(window_end-window_start))
         window_start = min(window_start + window_delta, data_len)
         window_end   = min(window_end   + window_delta, data_len)
 
@@ -117,13 +123,19 @@ def main():
 
     # Plot the real data
     result_plot = newFig()
-    plt.plot(zGaus.t_data, zGaus.data)
+    plt.plot(xGaus.t_data, xGaus.data, '-')
 
     # Plot the regression fit
     t_data = list(range(data_len))
     plt.plot(t_data, gaussian_fit_curve)
-    plt.plot(t_data, gaussian_fit_curve + 2*gaussian_std_curve, 'k')
-    plt.plot(t_data, gaussian_fit_curve - 2*gaussian_std_curve, 'k')
+    plt.plot(t_data, gaussian_fit_curve + gaussian_std_curve, 'k')
+    plt.plot(t_data, gaussian_fit_curve - gaussian_std_curve, 'k')
+
+    param_plot = newFig()
+    plt.plot(t_data, sigma_f_curve)
+    plt.plot(t_data, sigma_n_curve)
+    plt.plot(t_data, length_curve)
+    plt.legend(["sigma_f", "sigma_n", "length"])
     plt.show()
     return
 

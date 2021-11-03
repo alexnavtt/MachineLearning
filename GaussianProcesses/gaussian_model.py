@@ -55,7 +55,7 @@ class GaussianModel:
 
         y_data = []
         t_data = []
-        for idx, _ in enumerate(self.data):
+        for idx, _ in enumerate(self.t_data):
             if self.t_data[idx] >= start and self.t_data[idx] < end:
                 y_data.append(self.data[idx])
                 t_data.append(self.t_data[idx])
@@ -90,7 +90,7 @@ class GaussianModel:
         # Test to see if we need to update the hyperparameters
         test_cost = logLikelihood(self.theta())
         print(f"Test cost is {test_cost}")
-        if (test_cost < 1.2*self._best_cost):
+        if (test_cost < self._best_cost):
             return self.theta()
 
         else:
