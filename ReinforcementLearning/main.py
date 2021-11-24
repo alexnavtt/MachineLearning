@@ -1,16 +1,9 @@
-from numpy.testing._private.utils import rand
 from litter import Litter
 from object import Object
 from sidewalk import Action, Sidewalk
 from matplotlib import pyplot as plt
 
 import random
-
-class ModuleTypes():
-    FORWARD   = 0
-    LITTER    = 1
-    OBSTACLES = 2
-    STEADY    = 3
 
 # Smaller sidewalk with deterministic obstacles for debugging
 def simpleSidewalk():
@@ -32,13 +25,16 @@ def simpleSidewalk():
 def complexSidewalk():
     street = Sidewalk(6, 25)
 
-    for x in range(6):
-        for y in range(25):
-            test_val = 15*random.random()
-            test_val_2 = 10*random.random()
-            if test_val <= 1:
+    for x in range(street.x_size):
+        for y in range(street.y_size):
+            test_val_1 = 15*random.random()
+            test_val_2 = 15*random.random()
+            
+            # 1/15 chance of adding an obstacle
+            if test_val_1 <= 1:
                 street.addObsAtLoc(x, y)
 
+            # 1/15 chance of adding litter
             elif test_val_2 <= 1:
                 street.addLitterAtLoc(x, y)
 
@@ -50,13 +46,20 @@ def gridCellState(env: Sidewalk):
     x = env.agent.loc.x
     y = env.agent.loc.y
 
-    idx = y * env.x_size + x
-    if idx >= env.x_size * env.y_size:
+    if env.isOutOfBounds():
         idx = -1
+    else:
+        idx = y * env.x_size + x
 
     return idx
 
 """====================== FORWARD ======================"""
+
+def forwardState(env:Sidewalk):
+    if env.isOutOfBounds():
+        return -1
+    else:
+        return env.agent.loc.y
 
 def forwardReward(env: Sidewalk):
     x = env.agent.loc.x
@@ -72,8 +75,15 @@ def forwardReward(env: Sidewalk):
 
     else:
         return 0
+        # return 1/(env.y_size - y + 1)
 
 """====================== ON TARGET ======================"""
+
+def onTargetState(env: Sidewalk):
+    if env.isOutOfBounds():
+        return -1
+
+    return env.agent.loc.x
 
 def onTargetReward(env: Sidewalk):
     x = env.agent.loc.x
@@ -132,15 +142,15 @@ def litterReward(env: Sidewalk):
     x = env.agent.loc.x
     y = env.agent.loc.y
     
-    reward = 0
+    reward = -1
 
     # Successful termination condition
     if y == env.y_size:
-        return 0
+        return reward
 
     # Fatal termination condition
     elif y < 0 or x < 0 or x > env.x_size:
-        return 0
+        return reward
 
     # If we are on a litter: reward. Otherwise nothing
     for litter in env._litters:
@@ -150,7 +160,7 @@ def litterReward(env: Sidewalk):
 
         # If this offset is less than the minimum so far: update
         if x_diff == y_diff == 0:
-            reward += 1
+            reward = 1
 
     return reward
 
@@ -220,19 +230,20 @@ def obsReward(env:Sidewalk):
 """======================================================="""
 
 def main():
-    # street = simpleSidewalk()
     street = complexSidewalk()
-    num_cells = street.x_size * street.y_size
+    num_cells     = street.x_size * street.y_size
     object_states = (2*street.x_size - 1) * (2*street.y_size - 1)
 
     # Module to encourage walking forward
-    street.addModule(forwardReward, gridCellState, num_cells, "Forward")
-    street.addModule(onTargetReward, gridCellState, num_cells, "Middle")
+    street.addModule(forwardReward, forwardState, street.y_size, "Forward")
+    street.addModule(onTargetReward, onTargetState, street.x_size, "Middle")
     street.addModule(litterReward, litterState, object_states, "Litter")
     street.addModule(obsReward, obstacleState, object_states,  "Obstacles")
 
-    street.modules[1].weight = 0.1
-    street.modules[2].weight = 2
+    street.setModuleWeight("Forward",   1)
+    street.setModuleWeight("Middle",    1)
+    street.setModuleWeight("Litter",    0.3)
+    street.setModuleWeight("Obstacles", 1)
     
     def show(module_idx = None):
         street.plotSelf()
@@ -245,7 +256,7 @@ def main():
 
     # Train the modules
     for idx, module in enumerate(street.modules):
-        for episode in range(5000):
+        for episode in range(1000):
             # Reset the sidewalk to starting conditions
             street.reset()
 
@@ -253,6 +264,7 @@ def main():
             for _ in range(100):
                 next_action = street.chooseAction(module_index = idx, final = False)
                 terminated = street.applyAction(next_action, module_index=idx)
+                # show(0)
                 if terminated:
                     break
 
@@ -262,15 +274,23 @@ def main():
 
     # Reset and try it out
     street.reset()
+    path_x = [street.agent.loc.x]
+    path_y = [street.agent.loc.y]
     for _ in range(100):
         show(0)
-        next_action = street.chooseAction(-1, final = True)
+        next_action = street.chooseAction(module_index=-1, final=True)
         terminated = street.applyAction(next_action)
-        if terminated:
-            street.plotSelf()
-            plt.draw()
-            plt.waitforbuttonpress()
+        path_x.append(street.agent.loc.x)
+        path_y.append(street.agent.loc.y)
+        if terminated or street.agent.loc.y == street.y_size - 1:
+            show()
             break
+
+    street.reset()
+    street.plotSelf()
+    plt.plot(path_x, path_y)
+    plt.draw()
+    plt.waitforbuttonpress()
 
 if __name__ == "__main__":
     main()
