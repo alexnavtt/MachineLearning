@@ -92,6 +92,14 @@ class Sidewalk:
 
     """======================================================================="""
 
+    def setModuleWeight(self, name, weight):
+        for m in self.modules:
+            if m.name == name:
+                m.weight = weight
+                break
+
+    """======================================================================="""
+
     # Reset the state to the starting state
     def reset(self):
         self.agent.loc = self.home.copy()
@@ -128,6 +136,7 @@ class Sidewalk:
         else:
             # Choose randomly with the chances 60%, 25%, 15%
             cutoffs = [60, 85, 100]
+            # cutoffs = [80, 95, 100]
             random_val = int(100*random.random())
             if   random_val < cutoffs[0]:
                 action_index = getIndexOfPlace(q_vals, 1)
@@ -279,16 +288,21 @@ class Sidewalk:
             for y in range(self.y_size):
                 self.agent.loc = Object.Loc(x, y)
                 reward = m.reward_func(self)
-                plt.text(x-0.5, y-0.5, f"{int(100*reward):d}")
+                plt.text(x-0.5, y-0.5, f"{int(10*reward):d}")
 
         self.agent.loc = original_loc
 
     """======================================================================="""
 
     def printQTable(self, module_index: int):
+        print(f" Q-Table for module {self.modules[module_index].name}")
         print(f"    {'UP':>10}   {'RIGHT':>10}   {'DOWN':>10}   {'LEFT':>10}")
         for idx, q_vec in enumerate(self.modules[module_index].q_table):
-            print(f"{idx:3}:", *(f"{val:>+9.3f} | " for val in q_vec))
+            # Get the index of the max q-value
+            max_index = np.argmax(q_vec)
+            layout = ["\033[0m"]*4
+            layout[max_index] = "\033[1;32m"
+            print(f"{idx:3}:", *(f"{layout[idx]}{val:>+9.3f} | " for idx, val in enumerate(q_vec)))
 
 
 """======================================================================================="""
