@@ -60,10 +60,19 @@ def forwardState(env:Sidewalk):
         return -1
     else:
         return env.agent.loc.y
+    # return env.last_action_idx
 
 def forwardReward(env: Sidewalk):
-    x = env.agent.loc.x
-    y = env.agent.loc.y
+    # x = env.agent.loc.x
+    # y = env.agent.loc.y
+
+    action = env.last_action_idx
+    if action == Action.UP.value:
+        return 1
+    elif action == Action.DOWN.value:
+        return -1
+    else:
+        return 0
 
     # Successful termination
     if y >= env.y_size:
@@ -74,8 +83,8 @@ def forwardReward(env: Sidewalk):
         return 0
 
     else:
-        return 0
-        # return 1/(env.y_size - y + 1)
+        # return 0
+        return 1/(env.y_size - y + 1)
 
 """====================== ON TARGET ======================"""
 
@@ -94,15 +103,18 @@ def onTargetReward(env: Sidewalk):
         return 0
 
     # Failed termination
-    elif y < 0 or x < 0 or x >= env.x_size:
+    elif x < 0 or x >= env.x_size or y < 0:
         return -1
 
-    if x == env.x_size - 1:
-        return -1
-    elif x == 0:
-        return -1
-    else:
-        return 0
+    A = env.x_size**2 / 4.
+    return (1/A) * (-x**2 + x * env.x_size)
+    # Every other case
+    # if x == env.x_size - 1:
+    #     return -1
+    # elif x == 0:
+    #     return -1
+    # else:
+    #     return 0
     
 """====================== LITTER ======================"""
 
@@ -142,7 +154,7 @@ def litterReward(env: Sidewalk):
     x = env.agent.loc.x
     y = env.agent.loc.y
     
-    reward = -1
+    reward = 0
 
     # Successful termination condition
     if y == env.y_size:
@@ -170,18 +182,20 @@ def obstacleState(env: Sidewalk):
     x = env.agent.loc.x
     y = env.agent.loc.y
 
-    # If there are no litters left, return -1
+    # If there are no obstacles left, return -1
     if not env._obstacles:
         return -1
 
     # If out of bounds, return -1
     if x < 0 or x >= env.x_size or y < 0 or y >= env.y_size:
         return -1
+
+    return y * env.x_size + x
     
-    # Find the closest litter
+    # Find the closest obstacle
     min_offset = 1e6
     for obs in env._obstacles:
-        # Get the absolute offset to the litter
+        # Get the absolute offset to the obstacle
         y_diff = obs.loc.y - y
         x_diff = obs.loc.x - x
         offset = abs(x_diff) + abs(y_diff)
@@ -192,7 +206,7 @@ def obstacleState(env: Sidewalk):
             min_x_offset = x_diff
             min_y_offset = y_diff
 
-    # The state is related to the x and y offsets from the closest litter
+    # The state is related to the x and y offsets from the closest obstacle
     y_idx = min_y_offset + env.y_size - 1
     x_idx = min_x_offset + env.x_size - 1
     return y_idx * (2*env.x_size - 1) + x_idx
@@ -205,11 +219,11 @@ def obsReward(env:Sidewalk):
 
     # Successful termination condition
     if y == env.y_size:
-        return 0
+        return reward
 
     # Fatal termination condition
     elif y < 0 or x < 0 or x > env.x_size:
-        return 0
+        return reward
 
     # If we are on an obstacle: penalize. Otherwise nothing
     for obs in env._obstacles:
@@ -219,7 +233,7 @@ def obsReward(env:Sidewalk):
 
         # If this offset is less than the minimum so far: update
         if x_diff == y_diff == 0:
-            reward -= 1
+            reward = -1
 
     return reward
 
@@ -235,14 +249,16 @@ def main():
     object_states = (2*street.x_size - 1) * (2*street.y_size - 1)
 
     # Module to encourage walking forward
-    street.addModule(forwardReward, forwardState, street.y_size, "Forward")
+    street.addModule(forwardReward,  forwardState,  street.y_size, "Forward")
     street.addModule(onTargetReward, onTargetState, street.x_size, "Middle")
-    street.addModule(litterReward, litterState, object_states, "Litter")
-    street.addModule(obsReward, obstacleState, object_states,  "Obstacles")
+    street.addModule(litterReward,   litterState,   object_states, "Litter")
+    street.addModule(obsReward,      obstacleState, num_cells, "Obstacles")
+    # street.addModule(obsReward,      obstacleState, object_states, "Obstacles")
 
-    street.setModuleWeight("Forward",   1)
-    street.setModuleWeight("Middle",    1)
-    street.setModuleWeight("Litter",    0.3)
+    # Set the relative weights of each module
+    street.setModuleWeight("Forward",   0.05)
+    street.setModuleWeight("Middle",    0.3)
+    street.setModuleWeight("Litter",    0.6)
     street.setModuleWeight("Obstacles", 1)
     
     def show(module_idx = None):
@@ -277,7 +293,7 @@ def main():
     path_x = [street.agent.loc.x]
     path_y = [street.agent.loc.y]
     for _ in range(100):
-        show(0)
+        show()
         next_action = street.chooseAction(module_index=-1, final=True)
         terminated = street.applyAction(next_action)
         path_x.append(street.agent.loc.x)

@@ -5,7 +5,7 @@ def dummy(env):
     return 0
 
 class QCell:
-    discount_factor = 0.99
+    discount_factor = 0.1
     learning_rate   = 0.5
 
     def __init__(self, num_actions, module):
